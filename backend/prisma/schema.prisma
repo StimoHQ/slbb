@@ -1,0 +1,95 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "./generated"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============ ENUMS ============
+enum StudyStatus {
+  NEW // Только что добавлено
+  LEARNING // В процессе изучения
+  REVIEWING // На этапе повторения
+  MASTERED // Выучено
+}
+
+enum Language {
+  ENG
+  RU
+}
+
+model User {
+  id    Int     @id @default(autoincrement())
+  email String  @unique
+  name  String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  userWords UserWords[]
+
+  @@map("Users")
+}
+
+model Word {
+  id       Int      @id @default(autoincrement())
+  word     String   @unique
+  language Language @default(ENG)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  userWords UserWords[]
+  textWords TextWords[]
+
+  @@map("Words")
+}
+
+model Text {
+  id      Int    @id @default(autoincrement())
+  content String @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  textWords TextWords[]
+
+  @@map("Texts")
+}
+
+model TextWords {
+  id      Int     @id @default(autoincrement())
+  textId  Int     @map("text_id")
+  wordId  Int     @map("word_id")
+  context String? @db.Text
+
+  // Relations
+  text Text @relation(fields: [textId], references: [id])
+  word Word @relation(fields: [wordId], references: [id])
+
+  // Constraints
+  @@unique([textId, wordId])
+}
+
+model UserWords {
+  id     Int         @id @default(autoincrement())
+  userId Int         @map("user_id")
+  wordId Int         @map("word_id")
+  status StudyStatus @default(NEW)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word Word @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  // Constraints
+  @@unique([userId, wordId])
+}

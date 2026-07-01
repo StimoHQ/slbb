@@ -1,0 +1,3 @@
+[Pod]
+PublishPort=5432:5432
+PublishPort=8080:80
