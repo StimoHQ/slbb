@@ -20,7 +20,6 @@ export class UserController {
 
   @ApiOperation({
     summary: 'Creates the user',
-    description: 'Creates the user',
   })
   @HttpCode(HttpStatus.OK)
   @Post()

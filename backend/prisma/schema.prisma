@@ -21,6 +21,23 @@ enum Language {
   RU
 }
 
+enum TextType {
+  BOOK
+  ARTICLE
+  RSS_FEED
+}
+
+enum TextFormat {
+  TXT
+  HTML
+  MARKDOWN
+  PDF
+}
+
+enum Source {
+  GUTENBERG
+}
+
 model User {
   id    Int     @id @default(autoincrement())
   email String  @unique
@@ -51,8 +68,14 @@ model Word {
 }
 
 model Text {
-  id      Int    @id @default(autoincrement())
-  content String @db.Text
+  id          Int        @id @default(autoincrement())
+  title       String
+  content     String     @db.Text
+  type        TextType
+  format      TextFormat
+  source      Source
+  sourceObjId Int        @map("source_obj_id")
+  sourceMeta  Json?      @map("source_meta") @db.JsonB
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -60,6 +83,7 @@ model Text {
   // Relations
   textWords TextWords[]
 
+  @@unique([source, sourceObjId])
   @@map("Texts")
 }
 
