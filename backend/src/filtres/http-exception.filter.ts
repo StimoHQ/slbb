@@ -14,6 +14,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const status = exception.getStatus();
     const exceptionResponse = exception.getResponse();
 
+    console.log(exceptionResponse);
+
     const errorResponse: ApiResponse = {
       status: 'error',
       timestamp: new Date().toISOString(),
@@ -22,9 +24,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
         typeof exceptionResponse === 'string'
           ? exceptionResponse
           : typeof exceptionResponse === 'object' &&
-              'message' in exceptionResponse &&
-              typeof exceptionResponse.message === 'string'
-            ? exceptionResponse.message
+              exceptionResponse !== null &&
+              'message' in exceptionResponse
+            ? Array.isArray(exceptionResponse.message)
+              ? exceptionResponse.message.join('\n') // ← Обработка массива
+              : typeof exceptionResponse.message === 'string'
+                ? exceptionResponse.message
+                : 'Internal server error'
             : 'Internal server error',
     };
 

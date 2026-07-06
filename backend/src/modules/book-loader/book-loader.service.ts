@@ -90,7 +90,7 @@ export class BookLoaderService {
             htmlParser.write(chunkStr);
             if (language && language !== 'en') {
               htmlParser.end();
-              throw new BadRequestException('This is not English book');
+              throw new BadRequestException('This is not an English book');
             }
           }
 
@@ -106,7 +106,7 @@ export class BookLoaderService {
       throw new BadRequestException('HTML File not found');
     } catch (error) {
       throw new BadRequestException(
-        `Unable to extract data from ZIP file ${error.message}`,
+        `Unable to extract data from ZIP file:\n ${error.message}`,
       );
     } finally {
       !zipStream.destroyed && zipStream.destroy();
