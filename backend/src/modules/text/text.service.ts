@@ -1,8 +1,13 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateTextDto } from './dto/create-text.dto';
 import { UpdateTextDto } from './dto/update-text.dto';
 import { BookLoaderService } from '../book-loader/book-loader.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { GetOneTextDto } from './dto/get-text.dto';
 
 @Injectable()
 export class TextService {
@@ -39,5 +44,24 @@ export class TextService {
     throw new BadRequestException(
       `Type "${createTextDto.type}" does not support yet. Only: BOOK in HTML`,
     );
+  }
+
+  public async getOne(params: GetOneTextDto) {
+    const text = await this.prismaService.text.findUnique({
+      where: {
+        id: params.id,
+      },
+      select: {
+        title: true,
+        source: true,
+        content: true,
+      },
+    });
+
+    if (!text) {
+      throw new NotFoundException(`Text by id: ${params.id} does not found`);
+    }
+
+    return text;
   }
 }

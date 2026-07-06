@@ -1,6 +1,6 @@
 [Container]
 ContainerName=pgadmin
-EnvironmentFile=/home/m4s/dev/projects/slbb/backend/.env
+EnvironmentFile=%h/dev/projects/slbb/backend/.env
 Image=docker.io/dpage/pgadmin4:latest
 Pod=slbb.pod
 Volume=pgadmin_data_slbb:/var/lib/pgadmin
