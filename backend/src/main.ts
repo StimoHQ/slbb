@@ -4,7 +4,10 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { HttpExceptionFilter } from './filtres';
-import { TransformResponseInterceptor } from './interceptors/transform-response.interceptor';
+import {
+  TimingInterceptor,
+  TransformResponseInterceptor,
+} from './interceptors';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -35,6 +38,8 @@ async function bootstrap() {
     }),
   );
   app.useGlobalFilters(new HttpExceptionFilter());
+
+  app.useGlobalInterceptors(new TimingInterceptor());
   app.useGlobalInterceptors(new TransformResponseInterceptor());
 
   const port = config.getOrThrow<number>('HTTP_PORT');

@@ -10,7 +10,6 @@ datasource db {
 
 // ============ ENUMS ============
 enum StudyStatus {
-  NEW // Только что добавлено
   LEARNING // В процессе изучения
   REVIEWING // На этапе повторения
   MASTERED // Выучено
@@ -39,81 +38,98 @@ enum Source {
 }
 
 model User {
-  id    Int     @id @default(autoincrement())
-  email String  @unique
-  name  String?
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relations
+  // Fields
+  id        Int         @id @default(autoincrement())
+  email     String      @unique
+  name      String?
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
   userWords UserWords[]
 
-  @@map("Users")
+  //Table Meta
+  @@map("users")
 }
 
 model Word {
-  id       Int      @id @default(autoincrement())
-  word     String   @unique
-  language Language @default(ENG)
+  // Fields
+  id              Int              @id @default(autoincrement())
+  lemma           String
+  language        Language         @default(ENG)
+  wordOccurrences WordOccurrence[]
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  userWords UserWords[]
-  textWords TextWords[]
-
-  @@map("Words")
+  //Table Meta
+  @@unique([lemma, language])
+  @@map("words")
 }
 
 model Text {
-  id          Int        @id @default(autoincrement())
-  title       String
-  content     String     @db.Text
-  type        TextType
-  format      TextFormat
-  source      Source
-  sourceObjId Int        @map("source_obj_id")
-  sourceMeta  Json?      @map("source_meta") @db.JsonB
+  // Fields
+  id              Int              @id @default(autoincrement())
+  title           String
+  content         TextContent?
+  type            TextType
+  format          TextFormat
+  source          Source           @default(GUTENBERG)
+  sourceObjId     Int              @map("source_obj_id")
+  sourceMeta      Json?            @map("source_meta") @db.JsonB
+  wordOccurrences WordOccurrence[]
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  textWords TextWords[]
-
+  //Table Meta
   @@unique([source, sourceObjId])
-  @@map("Texts")
+  @@map("texts")
 }
 
-model TextWords {
-  id      Int     @id @default(autoincrement())
-  textId  Int     @map("text_id")
-  wordId  Int     @map("word_id")
-  context String? @db.Text
-
+model TextContent {
+  // Fields
+  id        Int      @id @default(autoincrement())
+  textId    Int      @unique @map("text_id")
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
   // Relations
-  text Text @relation(fields: [textId], references: [id])
-  word Word @relation(fields: [wordId], references: [id])
+  text      Text     @relation(fields: [textId], references: [id], onDelete: Cascade)
 
-  // Constraints
-  @@unique([textId, wordId])
+  //Table Meta
+  @@map("text_contents")
+}
+
+model WordOccurrence {
+  // Fields
+  id          Int         @id @default(autoincrement())
+  textId      Int         @map("text_id")
+  wordId      Int         @map("word_id")
+  context     String      @db.Text
+  position    Int
+  translation String      @db.Text
+  userWords   UserWords[]
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  // Relations
+  text        Text        @relation(fields: [textId], references: [id], onDelete: Cascade)
+  word        Word        @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  //Table Meta
+  @@map("word_occurrences")
 }
 
 model UserWords {
-  id     Int         @id @default(autoincrement())
-  userId Int         @map("user_id")
-  wordId Int         @map("word_id")
-  status StudyStatus @default(NEW)
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
+  // Fields
+  id               Int            @id @default(autoincrement())
+  userId           Int            @map("user_id")
+  wordOccurrenceId Int            @map("word_occurrence_id")
+  status           StudyStatus    @default(LEARNING)
+  userNote         String         @map("user_note")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
   // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  word Word @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wordOccurrence   WordOccurrence @relation(fields: [wordOccurrenceId], references: [id], onDelete: NoAction)
 
-  // Constraints
-  @@unique([userId, wordId])
+  //Table Meta
+  @@unique([userId, wordOccurrenceId])
+  @@map("user_words")
 }

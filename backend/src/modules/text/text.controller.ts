@@ -22,7 +22,7 @@ export class TextController {
   @Post()
   async create(@Body() createTextDto: CreateTextDto) {
     const newText = await this.textService.create(createTextDto);
-    return { ...newText, message: 'Text has been created' };
+    return {message: 'Text has been created', ...newText};
   }
 
   @ApiOperation({
