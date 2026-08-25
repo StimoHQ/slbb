@@ -1,2 +1,2 @@
-export * from './transform-response.interceptor'
-export * from './timing.interceptopr'
+export * from "./transform-response.interceptor";
+export * from "./timing.interceptopr";
