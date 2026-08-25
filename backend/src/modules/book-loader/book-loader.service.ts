@@ -7,6 +7,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as htmlparser2 from "htmlparser2";
 import { access } from "fs/promises";
+import { StringDecoder } from "string_decoder";
 
 @Injectable()
 export class BookLoaderService {
@@ -77,19 +78,22 @@ export class BookLoaderService {
 						},
 					});
 
-					let totalSize = 0;
-					const chunks: string[] = [];
+					const stringDecoder = new StringDecoder("utf-8");
 
 					try {
+						let totalSize = 0;
+						const chunks: string[] = [];
 						// Lets check the file (entry) by chunks
+						// Every chunk is Buffer type
 						for await (const chunk of entry) {
-							const chunkStr = chunk.toString("utf8");
 							totalSize += chunk.length;
 							if (totalSize > MAX_AVAILABLE_SIZE) {
 								throw new Error(
 									`HTML file exceeds maximum size of ${MAX_AVAILABLE_SIZE / (1024 * 1024)} MB`,
 								);
 							}
+
+							const chunkStr = stringDecoder.write(chunk);
 							chunks.push(chunkStr);
 							htmlParser.write(chunkStr);
 
@@ -98,14 +102,22 @@ export class BookLoaderService {
 							}
 						}
 
+						// Check if there's something left
+						const finalStr = stringDecoder.end();
+						if (finalStr) {
+							chunks.push(finalStr);
+							htmlParser.write(finalStr);
+						}
+
 						if (!language) {
 							throw new Error("Unrecognizable language");
 						}
 
 						return { content: chunks.join(""), title: title || entry.path };
 					} finally {
+						//cleane up
 						htmlParser.end();
-						entry.autodrain();
+						if (!entry.destroyed) entry.destroy();
 					}
 				} else {
 					// Just ignore other files and continue
@@ -120,7 +132,7 @@ export class BookLoaderService {
 
 			throw new Error(errorMessage);
 		} finally {
-			!zipStream.destroyed && zipStream.destroy();
+			if (!zipStream.destroyed) zipStream.destroy();
 		}
 	}
 }
