@@ -39,48 +39,49 @@ enum Source {
 
 model User {
   // Fields
-  id        Int         @id @default(autoincrement())
-  email     String      @unique
-  name      String?
-  createdAt DateTime    @default(now()) @map("created_at")
-  updatedAt DateTime    @updatedAt @map("updated_at")
-  userWords UserWords[]
+  id               Int               @id @default(autoincrement())
+  email            String            @unique
+  name             String?
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  userLexicalUnits UserLexicalUnit[]
 
   //Table Meta
   @@map("users")
 }
 
-model Word {
-  // Fields
-  id              Int              @id @default(autoincrement())
-  lemma           String
-  language        Language         @default(ENG)
-  wordOccurrences WordOccurrence[]
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
-
-  //Table Meta
-  @@unique([lemma, language])
-  @@map("words")
-}
-
 model Text {
   // Fields
-  id              Int              @id @default(autoincrement())
-  title           String
-  content         TextContent?
-  type            TextType
-  format          TextFormat
-  source          Source           @default(GUTENBERG)
-  sourceObjId     Int              @map("source_obj_id")
-  sourceMeta      Json?            @map("source_meta") @db.JsonB
-  wordOccurrences WordOccurrence[]
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
+  id          Int                     @id @default(autoincrement())
+  title       String
+  language    Language                @default(ENG)
+  content     TextContent?
+  type        TextType
+  format      TextFormat
+  source      Source                  @default(GUTENBERG)
+  sourceObjId Int                     @map("source_obj_id")
+  sourceMeta  Json?                   @map("source_meta") @db.JsonB
+  occurrences LexicalUnitOccurrence[]
+  createdAt   DateTime                @default(now()) @map("created_at")
+  updatedAt   DateTime                @updatedAt @map("updated_at")
 
   //Table Meta
   @@unique([source, sourceObjId])
   @@map("texts")
+}
+
+model LexicalUnit {
+  // Fields
+  id               Int                     @id @default(autoincrement())
+  value            String
+  occurrences      LexicalUnitOccurrence[]
+  userLexicalUnits UserLexicalUnit[]
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+
+  //Table Meta
+  @@unique([value])
+  @@map("lexical_units")
 }
 
 model TextContent {
@@ -97,39 +98,38 @@ model TextContent {
   @@map("text_contents")
 }
 
-model WordOccurrence {
+model LexicalUnitOccurrence {
   // Fields
-  id          Int         @id @default(autoincrement())
-  textId      Int         @map("text_id")
-  wordId      Int         @map("word_id")
-  context     String      @db.Text
-  position    Int
-  translation String      @db.Text
-  userWords   UserWords[]
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
+  id                     Int         @id @default(autoincrement())
+  textId                 Int         @map("text_id")
+  lexicalUnitId          Int         @map("lexical_unit_id")
+  lexicalUnitStartPos    Int         @map("lexical_unit_start_pos")
+  lexicalUnitTranslation String      @map("lexical_unit_translation")
+  context                String      @db.Text
+  createdAt              DateTime    @default(now()) @map("created_at")
+  updatedAt              DateTime    @updatedAt @map("updated_at")
   // Relations
-  text        Text        @relation(fields: [textId], references: [id], onDelete: Cascade)
-  word        Word        @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  text                   Text        @relation(fields: [textId], references: [id], onDelete: Cascade)
+  lexicalUnit            LexicalUnit @relation(fields: [lexicalUnitId], references: [id], onDelete: Cascade)
 
   //Table Meta
-  @@map("word_occurrences")
+  @@map("lexical_unit_occurrences")
 }
 
-model UserWords {
+model UserLexicalUnit {
   // Fields
-  id               Int            @id @default(autoincrement())
-  userId           Int            @map("user_id")
-  wordOccurrenceId Int            @map("word_occurrence_id")
-  status           StudyStatus    @default(LEARNING)
-  userNote         String         @map("user_note")
-  createdAt        DateTime       @default(now()) @map("created_at")
-  updatedAt        DateTime       @updatedAt @map("updated_at")
+  id            Int         @id @default(autoincrement())
+  userId        Int         @map("user_id")
+  lexicalUnitId Int         @map("lexical_unit_id")
+  status        StudyStatus @default(LEARNING)
+  userNote      String?     @map("user_note")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
   // Relations
-  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  wordOccurrence   WordOccurrence @relation(fields: [wordOccurrenceId], references: [id], onDelete: NoAction)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lexicalUnit   LexicalUnit @relation(fields: [lexicalUnitId], references: [id], onDelete: NoAction)
 
   //Table Meta
-  @@unique([userId, wordOccurrenceId])
-  @@map("user_words")
+  @@unique([userId, lexicalUnitId])
+  @@map("user_lexical_units")
 }

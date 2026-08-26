@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
-import { BookLoaderService } from "./book-loader.service";
 import { HttpModule } from "@nestjs/axios";
+import { GutenbergLoaderService } from "./gutenberg-loader.service";
 
 @Module({
 	imports: [
@@ -9,7 +9,7 @@ import { HttpModule } from "@nestjs/axios";
 			maxRedirects: 5,
 		}),
 	],
-	providers: [BookLoaderService],
-	exports: [BookLoaderService],
+	providers: [GutenbergLoaderService],
+	exports: [GutenbergLoaderService],
 })
-export class BookLoaderModule {}
+export class GutenbergLoaderModule {}

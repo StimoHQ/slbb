@@ -8,18 +8,29 @@ import * as path from "path";
 import * as htmlparser2 from "htmlparser2";
 import { access } from "fs/promises";
 import { StringDecoder } from "string_decoder";
+import { Language } from "prisma/generated/enums";
+import type { TextLoader, TextLoadResult } from "../text/interfaces";
 
-@Injectable()
-export class BookLoaderService {
-	constructor(private readonly httpService: HttpService) {}
+const GUTENBERG_LANGUAGE_MAP: Record<string, Language> = {
+	ru: Language.RU,
+	en: Language.ENG,
+};
 
-	private readonly logger = new Logger(BookLoaderService.name);
+export type GutenbergLoaderOptions = {
+	sourceType: "url" | "local";
+	sourcePath: string;
+};
 
-	public async getHtmlBookFromZip(
-		sourceType: "url" | "local",
-		sourcePath: string,
-	): Promise<{ content: string; title: string }> {
-		let zipStream = await this.createStream(sourceType, sourcePath);
+class GutenbergLoader implements TextLoader {
+	constructor(
+		private readonly httpService: HttpService,
+		private readonly options: GutenbergLoaderOptions,
+	) {}
+
+	private readonly logger = new Logger(GutenbergLoader.name);
+
+	public async loadText(): Promise<TextLoadResult> {
+		let zipStream = await this.createStream(this.options.sourceType, this.options.sourcePath);
 		return await this.parseZipStream(zipStream);
 	}
 
@@ -50,7 +61,7 @@ export class BookLoaderService {
 		}
 	}
 
-	private async parseZipStream(zipStream: Readable) {
+	private async parseZipStream(zipStream: Readable): Promise<TextLoadResult> {
 		try {
 			const MAX_AVAILABLE_SIZE: number = 5 * 1024 * 1024; // 5 MB
 			const zipParser = zipStream.pipe(unzipper.Parse({ forceStream: true }));
@@ -113,7 +124,11 @@ export class BookLoaderService {
 							throw new Error("Unrecognizable language");
 						}
 
-						return { content: chunks.join(""), title: title || entry.path };
+						return {
+							content: chunks.join(""),
+							title: title || entry.path,
+							language: "ENG",
+						};
 					} finally {
 						//cleane up
 						htmlParser.end();
@@ -134,5 +149,14 @@ export class BookLoaderService {
 		} finally {
 			if (!zipStream.destroyed) zipStream.destroy();
 		}
+	}
+}
+
+@Injectable()
+export class GutenbergLoaderService {
+	constructor(private readonly httpService: HttpService) {}
+
+	public async createLoader(options: GutenbergLoaderOptions): Promise<TextLoader> {
+		return new GutenbergLoader(this.httpService, options);
 	}
 }

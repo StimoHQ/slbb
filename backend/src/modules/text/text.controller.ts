@@ -12,6 +12,7 @@ export class TextController {
 		summary: "Creates the text",
 	})
 	@Post()
+	@HttpCode(HttpStatus.CREATED)
 	async create(@Body() createTextDto: CreateTextDto) {
 		const newText = await this.textService.create(createTextDto);
 		return { message: "Text has been created", ...newText };

@@ -7,17 +7,18 @@ import {
 	Logger,
 } from "@nestjs/common";
 import { CreateTextDto } from "./dto/create-text.dto";
-import { BookLoaderService } from "../book-loader/book-loader.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { GetOneTextDto } from "./dto/get-text.dto";
 import { PrismaClientKnownRequestError } from "prisma/generated/internal/prismaNamespace";
+import { GutenbergLoaderService } from "../gutenberg_loader/gutenberg-loader.service";
+import { type TextLoadResult } from "./interfaces";
 
 @Injectable()
 export class TextService {
 	private readonly logger = new Logger(TextService.name);
 
 	constructor(
-		private readonly bookLoader: BookLoaderService,
+		private readonly gutenbergLoader: GutenbergLoaderService,
 		private readonly prismaService: PrismaService,
 	) {}
 
@@ -27,19 +28,21 @@ export class TextService {
 				`Type: "${type}" with format: ${format} does not support yet. Only: BOOK in HTML`,
 			);
 		}
-		// Parse the Book
-		let book: { title: string; content: string };
+		// Create the loader
+		const loader = await this.gutenbergLoader.createLoader({
+			sourcePath: "test-data/pg11-h.zip",
+			sourceType: "local",
+			// sourcePath: `https://www.gutenberg.org/cache/epub/${createTextDto.bookId}/pg${createTextDto.bookId}-h.zip`,
+			// sourceType: "url",
+		});
+
+		let book: TextLoadResult;
 		try {
-			book = await this.bookLoader.getHtmlBookFromZip("local", "test-data/pg11-h.zip");
-			// const htmlBook = await this.bookLoader.getHtmlBookFromZip(
-			//   'url',
-			//   `https://www.gutenberg.org/cache/epub/${createTextDto.bookId}/pg${createTextDto.bookId}-h.zip`,
-			// );
+			book = await loader.loadText();
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error";
 			throw new BadRequestException(`Failed to process book archive: ${errorMessage}`);
 		}
-
 		// Save to DataBase
 		try {
 			const text = await this.prismaService.text.create({
@@ -48,6 +51,8 @@ export class TextService {
 					type,
 					format,
 					sourceObjId: bookId,
+					source: "GUTENBERG",
+					language: book.language,
 				},
 			});
 

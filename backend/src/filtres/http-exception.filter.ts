@@ -1,6 +1,7 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from "@nestjs/common";
 import { Response } from "express";
-import { ApiResponse } from "src/common/intefaces";
+import { ApiResponse } from "src/common/interfaces";
+import { extractMessageFromObject } from "src/common/lib";
 
 @Catch(HttpException)
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -13,18 +14,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
 			status: "error",
 			timestamp: new Date().toISOString(),
 			statusCode: status,
-			message:
-				typeof exceptionResponse === "string"
-					? exceptionResponse
-					: typeof exceptionResponse === "object" &&
-						  exceptionResponse !== null &&
-						  "message" in exceptionResponse
-						? Array.isArray(exceptionResponse.message)
-							? exceptionResponse.message.join("\n") // ← Обработка массива
-							: typeof exceptionResponse.message === "string"
-								? exceptionResponse.message
-								: "Internal server error"
-						: "Internal server error",
+			message: extractMessageFromObject(exceptionResponse) ?? "Internal Server Error",
 		};
 
 		response.status(status).json(errorResponse);
