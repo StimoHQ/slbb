@@ -6,9 +6,9 @@ import {
 	InternalServerErrorException,
 	Logger,
 } from "@nestjs/common";
-import { CreateTextDto } from "./dto/create-text.dto";
+import { CreateTextDto, CreateTextResponseDto } from "./dto/create-text.dto";
 import { PrismaService } from "../prisma/prisma.service";
-import { GetOneTextDto } from "./dto/get-text.dto";
+import { GetTextChunkDto, GetTextChunkResponseDto } from "./dto/get-text.dto";
 import { PrismaClientKnownRequestError } from "prisma/generated/internal/prismaNamespace";
 import { GutenbergLoaderService } from "../gutenberg_loader/gutenberg-loader.service";
 import { type TextLoadResult } from "./interfaces";
@@ -22,7 +22,7 @@ export class TextService {
 		private readonly prismaService: PrismaService,
 	) {}
 
-	public async create({ bookId, format, type }: CreateTextDto) {
+	public async create({ bookId, format, type }: CreateTextDto): Promise<CreateTextResponseDto> {
 		if (type !== "BOOK" || format !== "HTML") {
 			throw new BadRequestException(
 				`Type: "${type}" with format: ${format} does not support yet. Only: BOOK in HTML`,
@@ -30,7 +30,7 @@ export class TextService {
 		}
 		// Create the loader
 		const loader = await this.gutenbergLoader.createLoader({
-			sourcePath: "test-data/pg11-h.zip",
+			sourcePath: "test-data/pg79471-h.zip",
 			sourceType: "local",
 			// sourcePath: `https://www.gutenberg.org/cache/epub/${createTextDto.bookId}/pg${createTextDto.bookId}-h.zip`,
 			// sourceType: "url",
@@ -80,7 +80,7 @@ export class TextService {
 		}
 	}
 
-	public async getOne({ id }: GetOneTextDto) {
+	public async getOne({ id }: GetTextChunkDto) {
 		const text = await this.prismaService.text.findUnique({
 			where: {
 				id,

@@ -28,6 +28,19 @@ services:
             - slbb-network
         restart: always
 
+    libretranslate:
+        container_name: libretranslate
+        image: docker.io/libretranslate/libretranslate:latest
+        ports:
+            - "${LIBRETRANSLATE_PORT}:5000"
+        environment:
+            LT_LOAD_ONLY: "en,ru"
+        volumes:
+            - libretranslate_data_slbb:/var/lib/libretranslate
+        networks:
+            - slbb-network
+        restart: always
+
 networks:
     slbb-network:
         driver: bridge
@@ -35,3 +48,4 @@ networks:
 volumes:
     postgres_data_slbb:
     pgadmin_data_slbb:
+    libretranslate_data_slbb:

@@ -8,13 +8,23 @@ import * as path from "path";
 import * as htmlparser2 from "htmlparser2";
 import { access } from "fs/promises";
 import { StringDecoder } from "string_decoder";
-import { Language } from "prisma/generated/enums";
-import type { TextLoader, TextLoadResult } from "../text/interfaces";
+import { type SupportedLanguage, type TextLoader, type TextLoadResult } from "../text/interfaces";
 
-const GUTENBERG_LANGUAGE_MAP: Record<string, Language> = {
-	ru: Language.RU,
-	en: Language.ENG,
+const rawLanguages = ["en", "english", "ru", "russian", "en-US", "US"] as const;
+type RawLanguages = (typeof rawLanguages)[number];
+
+const mappedLanguages: Record<SupportedLanguage, RawLanguages[]> = {
+	ENG: ["en", "english", "US", "en-US"],
 };
+
+function getSupportedLanguage(rawLanguage: string): SupportedLanguage {
+	for (const [supported, raws] of Object.entries(mappedLanguages)) {
+		if (raws.includes(rawLanguage as RawLanguages)) {
+			return supported as SupportedLanguage;
+		}
+	}
+	throw new Error(`Unsupported language: ${rawLanguage}`);
+}
 
 export type GutenbergLoaderOptions = {
 	sourceType: "url" | "local";
@@ -75,6 +85,7 @@ class GutenbergLoader implements TextLoader {
 					);
 
 					let language = "";
+					let supportedLagnuage: SupportedLanguage | null = null;
 					let title = "";
 
 					// Create the Html parser instance
@@ -108,8 +119,8 @@ class GutenbergLoader implements TextLoader {
 							chunks.push(chunkStr);
 							htmlParser.write(chunkStr);
 
-							if (language && language !== "en") {
-								throw new Error("This is not an English book");
+							if (language && !supportedLagnuage) {
+								supportedLagnuage = getSupportedLanguage(language);
 							}
 						}
 
@@ -118,16 +129,19 @@ class GutenbergLoader implements TextLoader {
 						if (finalStr) {
 							chunks.push(finalStr);
 							htmlParser.write(finalStr);
+							if (language && !supportedLagnuage) {
+								supportedLagnuage = getSupportedLanguage(language);
+							}
 						}
 
-						if (!language) {
+						if (!supportedLagnuage) {
 							throw new Error("Unrecognizable language");
 						}
 
 						return {
 							content: chunks.join(""),
 							title: title || entry.path,
-							language: "ENG",
+							language: supportedLagnuage,
 						};
 					} finally {
 						//cleane up
