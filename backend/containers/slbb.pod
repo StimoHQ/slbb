@@ -1,3 +1,5 @@
 [Pod]
+PodName=slbb
 PublishPort=5432:5432
 PublishPort=8080:80
+PublishPort=5000:5000

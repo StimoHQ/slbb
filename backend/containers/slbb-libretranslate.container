@@ -1,0 +1,9 @@
+[Container]
+ContainerName=libretranslate
+EnvironmentFile=%h/Projects/slbb/backend/.env
+Image=docker.io/libretranslate/libretranslate:latest
+Pod=slbb.pod
+Volume=libretranslate_data_slbb:/var/lib/libretranslate
+
+[Service]
+Restart=always
