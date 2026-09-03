@@ -3,13 +3,13 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { firstValueFrom } from "rxjs";
 import { SupportedLanguage } from "../text/interfaces";
-import { toSupportedLanguage } from "../text/utils";
 import {
 	DETECT_ENDPOINT,
 	DETECT_MIN_CONFIDENCE,
 	DETECT_TIMEOUT_MS,
 	LIBRETRANSLATE_DEFAULT_URL,
-} from "./utils/libretranslate.constants";
+} from "./utils";
+import { toSupportedLanguage } from "../text/utils";
 
 type DetectedLanguage = { language?: string; confidence?: number };
 

@@ -1,8 +1,9 @@
 import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, ParseIntPipe, Query } from "@nestjs/common";
 import { TextService } from "./text.service";
-import { CreateTextDto } from "./dto/create-text.dto";
+import { CreateTextDto } from "./dto";
 import { ApiOperation } from "@nestjs/swagger";
-import { GetTextChunkDto } from "./dto/get-text.dto";
+import { GetTextChunkDto } from "./dto";
+
 
 @Controller("text")
 export class TextController {

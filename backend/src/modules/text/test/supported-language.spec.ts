@@ -1,4 +1,4 @@
-import { toSupportedLanguage } from "../../utils/supported-language";
+import { toSupportedLanguage } from "../utils";
 
 describe("toSupportedLanguage", () => {
 	it.each(["english", "English", "ENGLISH", " en ", "en", "en-US", "en-GB", "eng", "English."] as const)(
