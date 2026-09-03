@@ -1,5 +1,5 @@
-import { DETECTION_SAMPLE_LIMIT } from "../../utils/gutenberg.constants";
-import { extractDetectionSample, isBookBodyStarted, parseGutenbergHeader } from "../../utils/gutenberg-txt-header";
+import { extractDetectionSample, isBookBodyStarted, parseGutenbergHeader } from "../utils";
+import { DETECTION_SAMPLE_LIMIT } from "../utils/gutenberg.constants";
 
 const HEADER = [
 	"The Project Gutenberg eBook of The electronic siege",
