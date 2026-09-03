@@ -1,7 +1,7 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { Transform, Type } from "class-transformer";
 import { IsInt, IsOptional, Max, Min } from "class-validator";
-import { Language } from "prisma/generated/enums";
+import { LearningLanguage } from "prisma/generated/enums";
 
 export class GetTextChunkDto {
 	@ApiProperty({
@@ -38,7 +38,7 @@ export class GetTextChunkDto {
 export class GetTextChunkResponseDto {
 	textId!: number;
 	title!: string;
-	language!: Language;
+	language!: LearningLanguage;
 	content!: string;
 	startOffset!: number;
 	endOffset!: number;

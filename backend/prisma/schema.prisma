@@ -15,22 +15,12 @@ enum StudyStatus {
   MASTERED // Выучено
 }
 
-enum Language {
+enum LearningLanguage {
   ENG
+}
+
+enum NativeLanguage {
   RU
-}
-
-enum TextType {
-  BOOK
-  ARTICLE
-  RSS_FEED
-}
-
-enum TextFormat {
-  TXT
-  HTML
-  MARKDOWN
-  PDF
 }
 
 enum Source {
@@ -42,6 +32,7 @@ model User {
   id               Int               @id @default(autoincrement())
   email            String            @unique
   name             String?
+  nativeLanguage   NativeLanguage    @default(RU) @map("native_language")
   createdAt        DateTime          @default(now()) @map("created_at")
   updatedAt        DateTime          @updatedAt @map("updated_at")
   userLexicalUnits UserLexicalUnit[]
@@ -54,10 +45,8 @@ model Text {
   // Fields
   id          Int                     @id @default(autoincrement())
   title       String
-  language    Language                @default(ENG)
+  language    LearningLanguage        @default(ENG)
   content     TextContent?
-  type        TextType
-  format      TextFormat
   source      Source                  @default(GUTENBERG)
   sourceObjId Int                     @map("source_obj_id")
   sourceMeta  Json?                   @map("source_meta") @db.JsonB
