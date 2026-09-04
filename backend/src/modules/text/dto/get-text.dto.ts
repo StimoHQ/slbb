@@ -1,17 +1,10 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { Transform, Type } from "class-transformer";
-import { IsInt, IsOptional, Max, Min } from "class-validator";
+import { Type } from "class-transformer";
+import { IsInt, Max, Min } from "class-validator";
 import { LearningLanguage } from "prisma/generated/enums";
 
-export class GetTextChunkDto {
-	@ApiProperty({
-		description: "ID from DB",
-		example: 1,
-	})
-	@IsInt()
-	@Type(() => Number)
-	id!: number;
-
+/** Параметры чанка из query-строки. */
+export class GetTextChunkQueryDto {
 	@ApiProperty({
 		description: "Starts a fetch data from the beginning of the Text by given offset",
 		example: 0,
@@ -33,6 +26,16 @@ export class GetTextChunkDto {
 	@Min(100)
 	@Max(20000)
 	limit!: number;
+}
+
+/** Контракт метода: query-параметры чанка плюс `id`, который приходит из пути. */
+export class GetTextChunkDto extends GetTextChunkQueryDto {
+	@ApiProperty({
+		description: "ID from DB",
+		example: 1,
+	})
+	@IsInt()
+	id!: number;
 }
 
 export class GetTextChunkResponseDto {
