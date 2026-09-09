@@ -23,6 +23,7 @@
     "k8s:kafka-topics": "kubectl -n slbb exec kafka-0 -- /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list",
     "kafka:smoke": "ts-node scripts/kafka-smoke.ts",
     "gutenberg:smoke": "ts-node scripts/gutenberg-smoke.ts",
+    "ingestion:smoke": "node --env-file=.env scripts/ingestion-smoke.cjs",
     "db:push": "prisma db push",
     "db:studio": "prisma studio"
   },
@@ -40,7 +41,9 @@
     "class-validator": "^0.15.1",
     "kafkajs": "^2.2.4",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "wink-eng-lite-web-model": "^1.8.1",
+    "wink-nlp": "^2.4.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
