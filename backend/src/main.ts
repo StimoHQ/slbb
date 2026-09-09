@@ -39,6 +39,9 @@ async function bootstrap() {
 	app.useGlobalInterceptors(new TimingInterceptor());
 	app.useGlobalInterceptors(new TransformResponseInterceptor());
 
+	// Без этого OnModuleDestroy (graceful disconnect Prisma/Kafka) не вызывается при SIGTERM/SIGINT.
+	app.enableShutdownHooks();
+
 	const port = config.getOrThrow<number>("HTTP_PORT");
 	const host = config.getOrThrow<string>("HTTP_HOST");
 
