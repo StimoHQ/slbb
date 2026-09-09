@@ -11,5 +11,9 @@ export type TextLoadResult = {
 };
 
 export interface TextLoader {
-	loadText(): Promise<TextLoadResult>;
+	/**
+	 * Загрузить контент по id объекта у источника, вернуть текст,
+	 * готовый к разбивке на предложения.
+	 */
+	load(sourceObjId: number): Promise<TextLoadResult>;
 }

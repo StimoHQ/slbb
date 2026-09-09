@@ -4,13 +4,14 @@ import {
 	NotFoundException,
 	ConflictException,
 	InternalServerErrorException,
+	HttpException,
 	Logger,
 } from "@nestjs/common";
 import { CreateTextDto, CreateTextResponseDto } from "./dto/create-text.dto";
 import { PrismaService } from "../prisma/prisma.service";
 import { GetTextChunkDto, GetTextChunkResponseDto } from "./dto/get-text.dto";
 import { PrismaClientKnownRequestError } from "prisma/generated/internal/prismaNamespace";
-import { GutenbergLoaderService } from "../gutenberg_loader/gutenberg-loader.service";
+import { GutenbergTxtLoader } from "../gutenberg_loader/gutenberg-txt.loader";
 import { type TextLoadResult } from "./interfaces";
 
 @Injectable()
@@ -18,25 +19,23 @@ export class TextService {
 	private readonly logger = new Logger(TextService.name);
 
 	constructor(
-		private readonly gutenbergLoader: GutenbergLoaderService,
+		private readonly gutenbergLoader: GutenbergTxtLoader,
 		private readonly prismaService: PrismaService,
 	) {}
 
+	// ВРЕМЕННО до конвейера Kafka (этапы 5-6): единственный источник — Gutenberg,
+	// поэтому его лоадер вызывается напрямую и синхронно. Маршрутизация по source
+	// появится, когда в enum Source реально добавится второй элемент.
 	public async create({ source, sourceObjId }: CreateTextDto): Promise<CreateTextResponseDto> {
-		// ВРЕМЕННО до конвейера Kafka (этапы 4-5): единственный источник — Gutenberg,
-		// поэтому лоадер вызывается напрямую. Выбор лоадера по source появится,
-		// когда в Source реально добавится второй элемент.
-		const loader = await this.gutenbergLoader.createLoader({
-			sourcePath: "test-data/pg79471-h.zip",
-			sourceType: "local",
-			// sourcePath: `https://www.gutenberg.org/cache/epub/${sourceObjId}/pg${sourceObjId}-h.zip`,
-			// sourceType: "url",
-		});
-
 		let loaded: TextLoadResult;
 		try {
-			loaded = await loader.loadText();
+			loaded = await this.gutenbergLoader.load(sourceObjId);
 		} catch (error) {
+			// Доменные коды лоадера (NotFound/Quota/…) не превращаем в 400.
+			if (error instanceof HttpException) {
+				throw error;
+			}
+
 			const errorMessage = error instanceof Error ? error.message : "Unknown error";
 			throw new BadRequestException(`Failed to load text from source: ${errorMessage}`);
 		}

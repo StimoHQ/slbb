@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { HttpModule } from "@nestjs/axios";
-import { GutenbergLoaderService } from "./gutenberg-loader.service";
+import { GutenbergApiService } from "./gutenberg-api.service";
+import { GutenbergTxtLoader } from "./gutenberg-txt.loader";
 
 @Module({
 	imports: [
@@ -9,7 +10,7 @@ import { GutenbergLoaderService } from "./gutenberg-loader.service";
 			maxRedirects: 5,
 		}),
 	],
-	providers: [GutenbergLoaderService],
-	exports: [GutenbergLoaderService],
+	providers: [GutenbergApiService, GutenbergTxtLoader],
+	exports: [GutenbergTxtLoader],
 })
 export class GutenbergLoaderModule {}
