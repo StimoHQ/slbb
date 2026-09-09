@@ -13,7 +13,16 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "prisma:generate": "prisma generate",
-    "nest:gen-res": "nest generate resource"
+    "nest:gen-res": "nest generate resource",
+    "k8s:up": "bash k8s/up.sh",
+    "k8s:env": "bash k8s/apply-env.sh",
+    "k8s:down": "bash k8s/down.sh",
+    "k8s:status": "kubectl -n slbb get pods,svc,pvc",
+    "k8s:logs": "kubectl -n slbb logs -l app --tail=100 --prefix",
+    "k8s:psql": "kubectl -n slbb exec postgres-0 -- sh -c 'psql -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\"'",
+    "k8s:kafka-topics": "kubectl -n slbb exec kafka-0 -- /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.1",
@@ -81,7 +90,7 @@
   "devEngines": {
     "runtime": {
       "name": "node",
-      "version": "26.7.0",
+      "version": "26.8.1",
       "onFail": "download"
     }
   }

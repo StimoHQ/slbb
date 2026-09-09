@@ -1,9 +1,0 @@
-[Container]
-ContainerName=postgres
-EnvironmentFile=%h/Projects/slbb/backend/.env
-Image=docker.io/library/postgres:18
-Pod=slbb.pod
-Volume=postgres_data_slbb:/var/lib/postgresql
-
-[Service]
-Restart=always

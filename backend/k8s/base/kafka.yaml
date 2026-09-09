@@ -1,0 +1,114 @@
+# Kafka (KRaft combined: broker+controller в одном процессе, без Zookeeper).
+# Официальный образ docker.io/apache/kafka; версия пинится — у образа дефолтный CLUSTER_ID,
+# и молчаливый мажорный апгрейд ломает уже отформатированный PVC.
+#
+# Два особенного момента образа, из-за которых манифест не похож на postgres.yaml:
+# 1) Entrypoint превращает ЛЮБУЮ переменную KAFKA_* в конфиг брокера (KAFKA_FOO_BAR -> foo.bar),
+#    поэтому сюда монтируется отдельный ConfigMap kafka-config, а не общий slbb-config:
+#    посторонние KAFKA_* из .env (например KAFKA_PORT — hostPort ServiceLB, а не свойство Kafka)
+#    уронили бы старт.
+# 2) В штатном server.properties образа log.dirs=/tmp/kraft-combined-logs, т.е. данные эфемерны;
+#    путь PVC фиксируем KAFKA_LOG_DIRS=/var/lib/kafka/data (значение живёт в .env).
+#
+# Service type LoadBalancer => k3s ServiceLB вешает hostPort 9092; приложение на хосте ходит на
+# localhost:9092, поэтому KAFKA_ADVERTISED_LISTENERS тоже localhost — это валидно ровно пока
+# клиенты на хосте (consumer внутри пода потребует INTERNAL/EXTERNAL пары листенеров).
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka
+  namespace: slbb
+  labels:
+    app: kafka
+    app.kubernetes.io/part-of: slbb
+spec:
+  serviceName: kafka
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+        app.kubernetes.io/part-of: slbb
+    spec:
+      terminationGracePeriodSeconds: 60
+      initContainers:
+        # local-path выдаёт PVC каталогом root:root, а kafka в образе работает от appuser
+        # (uid в Dockerfile не зафиксирован, поэтому chown по имени, не по числу).
+        # Тот же образ, что и основной контейнер — отдельного pull не нужно.
+        - name: fix-data-permissions
+          image: docker.io/apache/kafka:4.3.1
+          command: ["sh", "-c", "mkdir -p /var/lib/kafka/data && chown -R appuser:appuser /var/lib/kafka/data && chmod 700 /var/lib/kafka/data"]
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/kafka/data
+      containers:
+        - name: kafka
+          image: docker.io/apache/kafka:4.3.1
+          ports:
+            - name: kafka
+              containerPort: 9092
+            - name: controller
+              containerPort: 9093
+          envFrom:
+            - configMapRef:
+                name: kafka-config
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/kafka/data
+          # Брокер поднимает порты после форматирования storage и recovery логов;
+          # tcpSocket — чтобы не гонять kafka-broker-api-versions на каждой проверке.
+          startupProbe:
+            tcpSocket:
+              port: kafka
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: kafka
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: kafka
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 200m
+              memory: 704Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: slbb
+  labels:
+    app: kafka
+    app.kubernetes.io/part-of: slbb
+spec:
+  type: LoadBalancer
+  selector:
+    app: kafka
+  ports:
+    # 9093 (CONTROLLER) наружу не публикуем: он нужен только самим узлам Kafka.
+    - name: kafka
+      port: 9092
+      targetPort: kafka

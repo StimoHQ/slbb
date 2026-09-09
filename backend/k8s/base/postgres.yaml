@@ -1,0 +1,99 @@
+# PostgreSQL: единственный Pod с StatefulSet (стабильное имя postgres-0 + свой PVC).
+# Service type LoadBalancer => k3s ServiceLB (klipper-lb) вешает hostPort == Service.spec.port,
+# т.е. база доступна с хоста по localhost:5432 без port-forward.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: slbb
+  labels:
+    app: postgres
+    app.kubernetes.io/part-of: slbb
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+        app.kubernetes.io/part-of: slbb
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: postgres
+          image: docker.io/library/postgres:18
+          ports:
+            - name: postgres
+              containerPort: 5432
+          # POSTGRES_USER / POSTGRES_DB из ConfigMap, POSTGRES_PASSWORD из Secret (всё из .env)
+          envFrom:
+            - configMapRef:
+                name: slbb-config
+            - secretRef:
+                name: slbb-secrets
+          volumeMounts:
+            # У postgres:18 PGDATA=/var/lib/postgresql/18/docker, поэтому монтируем родителя,
+            # как в compose.yml — так том переживает смену мажорной версии.
+            - name: data
+              mountPath: /var/lib/postgresql
+          # TCP/pg_isready по 127.0.0.1: temp-сервер initdb на TCP не слушает,
+          # так что ready означает «настоящий сервер поднялся».
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: postgres
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: slbb
+  labels:
+    app: postgres
+    app.kubernetes.io/part-of: slbb
+spec:
+  type: LoadBalancer
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

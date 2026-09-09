@@ -1,0 +1,114 @@
+# pgAdmin 4: UI доступен с хоста на http://localhost:8080 (ServiceLB: hostPort == Service.spec.port).
+# Сервер PostgreSQL регистрируется декларативно из ConfigMap pgadmin-servers (его создаёт k8s/apply-env.sh
+# из .env) — см. PGADMIN_REPLACE_SERVERS_ON_STARTUP ниже.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pgadmin-data
+  namespace: slbb
+  labels:
+    app: pgadmin
+    app.kubernetes.io/part-of: slbb
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgadmin
+  namespace: slbb
+  labels:
+    app: pgadmin
+    app.kubernetes.io/part-of: slbb
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # том RWO: без Recreate rolling-update встанет в тупик на втором поде
+  selector:
+    matchLabels:
+      app: pgadmin
+  template:
+    metadata:
+      labels:
+        app: pgadmin
+        app.kubernetes.io/part-of: slbb
+    spec:
+      # образ работает под uid/gid 5050; fsGroup даёт доступ на запись к /var/lib/pgadmin
+      securityContext:
+        runAsUser: 5050
+        runAsGroup: 5050
+        fsGroup: 5050
+      containers:
+        - name: pgadmin
+          image: docker.io/dpage/pgadmin4:9.17
+          ports:
+            - name: http
+              containerPort: 80
+          envFrom:
+            - configMapRef:
+                name: slbb-config
+            - secretRef:
+                name: slbb-secrets
+          env:
+            # По умолчанию servers.json читается только при первой инициализации конфига.
+            # True делает его декларативным: сервер перерегистрируется на каждом старте пода.
+            - name: PGADMIN_REPLACE_SERVERS_ON_STARTUP
+              value: "True"
+          volumeMounts:
+            - name: servers
+              mountPath: /pgadmin4/servers.json
+              subPath: servers.json
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/pgadmin
+          readinessProbe:
+            httpGet:
+              path: /misc/ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /misc/ping
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: servers
+          configMap:
+            name: pgadmin-servers
+        - name: data
+          persistentVolumeClaim:
+            claimName: pgadmin-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgadmin
+  namespace: slbb
+  labels:
+    app: pgadmin
+    app.kubernetes.io/part-of: slbb
+spec:
+  type: LoadBalancer
+  selector:
+    app: pgadmin
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

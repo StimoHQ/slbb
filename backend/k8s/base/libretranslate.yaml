@@ -1,0 +1,102 @@
+# LibreTranslate: модели грузятся при старте контейнера — отсюда длинная startupProbe.
+# Доступ с хоста на localhost:5000 (ServiceLB: hostPort == Service.spec.port).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: libretranslate-data
+  namespace: slbb
+  labels:
+    app: libretranslate
+    app.kubernetes.io/part-of: slbb
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: libretranslate
+  namespace: slbb
+  labels:
+    app: libretranslate
+    app.kubernetes.io/part-of: slbb
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # том RWO
+  selector:
+    matchLabels:
+      app: libretranslate
+  template:
+    metadata:
+      labels:
+        app: libretranslate
+        app.kubernetes.io/part-of: slbb
+    spec:
+      containers:
+        - name: libretranslate
+          image: docker.io/libretranslate/libretranslate:v1.9.6
+          ports:
+            - name: http
+              containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: slbb-config # LT_LOAD_ONLY="en,ru"
+            - secretRef:
+                name: slbb-secrets
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/libretranslate
+          startupProbe:
+            # /healthz в образе v1.9.6 отсутствует (404), /languages отвечает сразу после загрузки моделей.
+            httpGet:
+              path: /languages
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 90 # до 15 минут на первую загрузку моделей
+          readinessProbe:
+            httpGet:
+              path: /languages
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /languages
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "4"
+              memory: 3Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: libretranslate-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: libretranslate
+  namespace: slbb
+  labels:
+    app: libretranslate
+    app.kubernetes.io/part-of: slbb
+spec:
+  type: LoadBalancer
+  selector:
+    app: libretranslate
+  ports:
+    - name: http
+      port: 5000
+      targetPort: http

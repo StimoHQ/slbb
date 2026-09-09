@@ -57,3 +57,7 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 /prisma/generated
+
+# AI
+AGENTS.md
+.qwen/
