@@ -22,37 +22,32 @@ export class TextService {
 		private readonly prismaService: PrismaService,
 	) {}
 
-	public async create({ bookId, format, type }: CreateTextDto): Promise<CreateTextResponseDto> {
-		if (type !== "BOOK" || format !== "HTML") {
-			throw new BadRequestException(
-				`Type: "${type}" with format: ${format} does not support yet. Only: BOOK in HTML`,
-			);
-		}
-		// Create the loader
+	public async create({ source, sourceObjId }: CreateTextDto): Promise<CreateTextResponseDto> {
+		// ВРЕМЕННО до конвейера Kafka (этапы 4-5): единственный источник — Gutenberg,
+		// поэтому лоадер вызывается напрямую. Выбор лоадера по source появится,
+		// когда в Source реально добавится второй элемент.
 		const loader = await this.gutenbergLoader.createLoader({
 			sourcePath: "test-data/pg79471-h.zip",
 			sourceType: "local",
-			// sourcePath: `https://www.gutenberg.org/cache/epub/${createTextDto.bookId}/pg${createTextDto.bookId}-h.zip`,
+			// sourcePath: `https://www.gutenberg.org/cache/epub/${sourceObjId}/pg${sourceObjId}-h.zip`,
 			// sourceType: "url",
 		});
 
-		let book: TextLoadResult;
+		let loaded: TextLoadResult;
 		try {
-			book = await loader.loadText();
+			loaded = await loader.loadText();
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error";
-			throw new BadRequestException(`Failed to process book archive: ${errorMessage}`);
+			throw new BadRequestException(`Failed to load text from source: ${errorMessage}`);
 		}
 		// Save to DataBase
 		try {
 			const text = await this.prismaService.text.create({
 				data: {
-					title: book.title,
-					type,
-					format,
-					sourceObjId: bookId,
-					source: "GUTENBERG",
-					language: book.language,
+					title: loaded.title,
+					source,
+					sourceObjId,
+					language: loaded.language,
 					status: "READY",
 					ingestedAt: new Date(),
 				},
@@ -64,7 +59,7 @@ export class TextService {
 				data: {
 					textId: text.id,
 					position: 0,
-					content: book.content,
+					content: loaded.content,
 				},
 			});
 

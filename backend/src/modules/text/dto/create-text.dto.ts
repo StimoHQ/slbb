@@ -1,28 +1,22 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsEnum, IsNumber, IsString } from "class-validator";
-import { TextFormat, TextType } from "prisma/generated/enums";
+import { IsEnum, IsInt } from "class-validator";
+import { Source } from "prisma/generated/enums";
 
 export class CreateTextDto {
 	@ApiProperty({
-		example: "Test",
+		enum: Source,
+		description: "Источник текста (загрузку выполняет consumer соответствующего источника)",
+		example: Source.GUTENBERG,
 	})
-	@IsString()
-	title!: string;
-
-	@ApiProperty({ enum: TextType })
-	@IsEnum(TextType)
-	type!: TextType;
-
-	@ApiProperty({ enum: TextFormat })
-	@IsEnum(TextFormat)
-	format!: TextFormat;
+	@IsEnum(Source)
+	source!: Source;
 
 	@ApiProperty({
-		description: "Book id from https://www.gutenberg.org/ebooks/{bookId}",
+		description: "Идентификатор текста у источника. Для Gutenberg: https://www.gutenberg.org/ebooks/{sourceObjId}",
 		example: 11,
 	})
-	@IsNumber()
-	bookId!: number;
+	@IsInt()
+	sourceObjId!: number;
 }
 
 export class CreateTextResponseDto {

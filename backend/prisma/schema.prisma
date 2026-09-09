@@ -20,19 +20,6 @@ enum Language {
   RU
 }
 
-enum TextType {
-  BOOK
-  ARTICLE
-  RSS_FEED
-}
-
-enum TextFormat {
-  TXT
-  HTML
-  MARKDOWN
-  PDF
-}
-
 enum Source {
   GUTENBERG
 }
@@ -59,20 +46,18 @@ model User {
 
 model Text {
   // Fields
-  id          Int                     @id @default(autoincrement())
+  id          Int             @id @default(autoincrement())
   title       String
-  language    Language                @default(ENG)
-  status      IngestionStatus         @default(QUEUED)
-  ingestError String?                 @map("ingest_error") @db.Text
-  ingestedAt  DateTime?               @map("ingested_at")
-  type        TextType
-  format      TextFormat
-  source      Source                  @default(GUTENBERG)
-  sourceObjId Int                     @map("source_obj_id")
-  sourceMeta  Json?                   @map("source_meta") @db.JsonB
+  language    Language        @default(ENG)
+  status      IngestionStatus @default(QUEUED)
+  ingestError String?         @map("ingest_error") @db.Text
+  ingestedAt  DateTime?       @map("ingested_at")
+  source      Source          @default(GUTENBERG)
+  sourceObjId Int             @map("source_obj_id")
+  sourceMeta  Json?           @map("source_meta") @db.JsonB
   sentences   TextSentence[]
-  createdAt   DateTime                @default(now()) @map("created_at")
-  updatedAt   DateTime                @updatedAt @map("updated_at")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
 
   //Table Meta
   @@unique([source, sourceObjId])
