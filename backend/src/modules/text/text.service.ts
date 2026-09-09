@@ -53,12 +53,17 @@ export class TextService {
 					sourceObjId: bookId,
 					source: "GUTENBERG",
 					language: book.language,
+					status: "READY",
+					ingestedAt: new Date(),
 				},
 			});
 
-			await this.prismaService.textContent.create({
+			// ВРЕМЕННО до конвейера Kafka (этапы 3-5): конвейера разбивки ещё нет,
+			// поэтому весь загруженный контент кладётся одной строкой с position 0.
+			await this.prismaService.textSentence.create({
 				data: {
 					textId: text.id,
+					position: 0,
 					content: book.content,
 				},
 			});
@@ -88,7 +93,10 @@ export class TextService {
 			select: {
 				title: true,
 				source: true,
-				content: true,
+				sentences: {
+					orderBy: { position: "asc" },
+					select: { content: true },
+				},
 			},
 		});
 
@@ -96,6 +104,8 @@ export class TextService {
 			throw new NotFoundException(`Text by id: ${id} does not found`);
 		}
 
-		return text;
+		// Контент теперь хранится по предложениям; пагинация по ним — этап 6, здесь склейка.
+		const { sentences, ...meta } = text;
+		return { ...meta, content: sentences.map((sentence) => sentence.content).join("") };
 	}
 }

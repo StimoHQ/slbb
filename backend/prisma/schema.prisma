@@ -37,6 +37,13 @@ enum Source {
   GUTENBERG
 }
 
+enum IngestionStatus {
+  QUEUED // задача создана, ждёт в очереди Kafka
+  PROCESSING // consumer качает и индексирует
+  READY // предложения сохранены, контент читается
+  FAILED // терминальная ошибка (причина в ingest_error)
+}
+
 model User {
   // Fields
   id               Int               @id @default(autoincrement())
@@ -55,13 +62,15 @@ model Text {
   id          Int                     @id @default(autoincrement())
   title       String
   language    Language                @default(ENG)
-  content     TextContent?
+  status      IngestionStatus         @default(QUEUED)
+  ingestError String?                 @map("ingest_error") @db.Text
+  ingestedAt  DateTime?               @map("ingested_at")
   type        TextType
   format      TextFormat
   source      Source                  @default(GUTENBERG)
   sourceObjId Int                     @map("source_obj_id")
   sourceMeta  Json?                   @map("source_meta") @db.JsonB
-  occurrences LexicalUnitOccurrence[]
+  sentences   TextSentence[]
   createdAt   DateTime                @default(now()) @map("created_at")
   updatedAt   DateTime                @updatedAt @map("updated_at")
 
@@ -84,33 +93,38 @@ model LexicalUnit {
   @@map("lexical_units")
 }
 
-model TextContent {
+model TextSentence {
   // Fields
   id        Int      @id @default(autoincrement())
-  textId    Int      @unique @map("text_id")
+  textId    Int      @map("text_id")
+  position  Int // 0-based порядковый номер предложения в тексте
   content   String   @db.Text
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+
   // Relations
-  text      Text     @relation(fields: [textId], references: [id], onDelete: Cascade)
+  text        Text                    @relation(fields: [textId], references: [id], onDelete: Cascade)
+  occurrences LexicalUnitOccurrence[]
 
   //Table Meta
-  @@map("text_contents")
+  @@unique([textId, position])
+  @@map("text_sentences")
 }
 
 model LexicalUnitOccurrence {
   // Fields
-  id                     Int         @id @default(autoincrement())
-  textId                 Int         @map("text_id")
-  lexicalUnitId          Int         @map("lexical_unit_id")
-  lexicalUnitStartPos    Int         @map("lexical_unit_start_pos")
-  lexicalUnitTranslation String      @map("lexical_unit_translation")
-  context                String      @db.Text
-  createdAt              DateTime    @default(now()) @map("created_at")
-  updatedAt              DateTime    @updatedAt @map("updated_at")
+  id                     Int          @id @default(autoincrement())
+  sentenceId             Int          @map("sentence_id")
+  lexicalUnitId          Int          @map("lexical_unit_id")
+  lexicalUnitStartPos    Int          @map("lexical_unit_start_pos") // позиция юнита внутри sentence.content
+  lexicalUnitTranslation String       @map("lexical_unit_translation")
+  createdAt              DateTime     @default(now()) @map("created_at")
+  updatedAt              DateTime     @updatedAt @map("updated_at")
   // Relations
-  text                   Text        @relation(fields: [textId], references: [id], onDelete: Cascade)
-  lexicalUnit            LexicalUnit @relation(fields: [lexicalUnitId], references: [id], onDelete: Cascade)
+  // Контекст вхождения — это предложение: вместо дублирующей строки context ссылка на TextSentence.
+  // Cascade: переразбивка текста (замена предложений) уничтожает и вхождения с контекстным переводом.
+  sentence               TextSentence @relation(fields: [sentenceId], references: [id], onDelete: Cascade)
+  lexicalUnit            LexicalUnit  @relation(fields: [lexicalUnitId], references: [id], onDelete: Cascade)
 
   //Table Meta
   @@map("lexical_unit_occurrences")

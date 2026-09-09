@@ -1,4 +1,3 @@
-import { type TextContent } from "prisma/generated/browser";
 import { type Text } from "prisma/generated/client";
 import { Language } from "prisma/generated/enums";
 
@@ -7,7 +6,7 @@ export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 
 export type TextLoadResult = {
 	title: Text["title"];
-	content: TextContent["content"];
+	content: string;
 	language: SupportedLanguage;
 };
 
