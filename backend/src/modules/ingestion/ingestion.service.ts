@@ -1,9 +1,12 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { type Text } from "prisma/generated/client";
-import { type PrismaService } from "../prisma/prisma.service";
+import { PrismaService } from "../prisma/prisma.service";
 import { GutenbergTxtLoader } from "../gutenberg_loader/gutenberg-txt.loader";
 import { type TextLoadResult } from "../text/interfaces";
 import { splitIntoSentences } from "./utils/split-into-sentences";
+
+/** Размер пачки createMany: держим транзакцию и память предсказуемыми на толстых книгах. */
+const SENTENCES_BATCH_SIZE = 500;
 
 /**
  * Источник-агностичный исполнитель задачи загрузки: забирает строку Text из очереди
@@ -12,8 +15,6 @@ import { splitIntoSentences } from "./utils/split-into-sentences";
  */
 @Injectable()
 export class IngestionService {
-	/** Размер пачки createMany: держим транзакцию и память предсказуемыми на толстых книгах. */
-	private static readonly SENTENCES_BATCH_SIZE = 500;
 
 	private readonly logger = new Logger(IngestionService.name);
 
@@ -88,9 +89,9 @@ export class IngestionService {
 
 			const rows = sentences.map((content, position) => ({ textId, position, content }));
 
-			for (let offset = 0; offset < rows.length; offset += IngestionService.SENTENCES_BATCH_SIZE) {
+			for (let offset = 0; offset < rows.length; offset += SENTENCES_BATCH_SIZE) {
 				await tx.textSentence.createMany({
-					data: rows.slice(offset, offset + IngestionService.SENTENCES_BATCH_SIZE),
+					data: rows.slice(offset, offset + SENTENCES_BATCH_SIZE),
 				});
 			}
 

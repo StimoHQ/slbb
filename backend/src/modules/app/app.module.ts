@@ -7,6 +7,7 @@ import { TextModule } from "src/modules/text/text.module";
 import { PrismaModule } from "../prisma/prisma.module";
 import { KafkaModule } from "../kafka/kafka.module";
 import { IngestionModule } from "../ingestion/ingestion.module";
+import { GutenbergLoaderModule } from "../gutenberg_loader/gutenberg-loader.module";
 
 @Module({
 	imports: [
@@ -16,6 +17,7 @@ import { IngestionModule } from "../ingestion/ingestion.module";
 		}),
 		KafkaModule,
 		IngestionModule,
+		GutenbergLoaderModule,
 		UserModule,
 		TextModule,
 	],
