@@ -12,14 +12,11 @@ export class CreateTextDto {
 	source!: Source;
 
 	@ApiProperty({
-		description: "Идентификатор текста у источника. Для Gutenberg: https://www.gutenberg.org/ebooks/{sourceObjId}",
+		description:
+			"Идентификатор текста у источника. Для Gutenberg: https://www.gutenberg.org/ebooks/{sourceObjId}. " +
+			"Ответ — задача TextDownloadTask, см. TextTaskResponseDto",
 		example: 11,
 	})
 	@IsInt()
 	sourceObjId!: number;
-}
-
-export class CreateTextResponseDto {
-	id!: number;
-	title!: string;
 }

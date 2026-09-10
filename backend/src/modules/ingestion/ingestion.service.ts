@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { type Text } from "prisma/generated/client";
+import { type TextDownloadTask } from "prisma/generated/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { GutenbergTxtLoader } from "../gutenberg_loader/gutenberg-txt.loader";
 import { type TextLoadResult } from "../text/interfaces";
@@ -9,13 +9,14 @@ import { splitIntoSentences } from "./utils/split-into-sentences";
 const SENTENCES_BATCH_SIZE = 500;
 
 /**
- * Источник-агностичный исполнитель задачи загрузки: забирает строку Text из очереди
- * Kafka, грузит контент лоадером нужного source, разбивает на предложения и атомарно
- * пересобирает text_sentences. Статус-машина делает повторную доставку идемпотентной.
+ * Источник-агностичный исполнитель задачи TextDownloadTask: берёт строку задачи из очереди
+ * Kafka, грузит контент лоадером нужного source, разбивает на предложения и одной транзакцией
+ * создаёт Text вместе с text_sentences. Строка Text появляется только в момент READY —
+ * до этого у текста нет ни статуса, ни ошибок, всё они на задаче.
+ * Статус-машина делает повторную доставку идемпотентной.
  */
 @Injectable()
 export class IngestionService {
-
 	private readonly logger = new Logger(IngestionService.name);
 
 	constructor(
@@ -24,32 +25,32 @@ export class IngestionService {
 	) {}
 
 	/** @returns false, если задача уже выполнена/теряется (не тот статус или удалена). */
-	public async process(textId: number): Promise<boolean> {
-		const text = await this.claim(textId);
+	public async process(textTaskId: number): Promise<boolean> {
+		const task = await this.claim(textTaskId);
 
-		if (!text) {
-			this.logger.debug(`Skip text ${textId}: not claimable (done or gone)`);
+		if (!task) {
+			this.logger.debug(`Skip task ${textTaskId}: not claimable (done or gone)`);
 
 			return false;
 		}
 
 		try {
-			const loaded = await this.loadBySource(text);
+			const loaded = await this.loadBySource(task);
 			const sentences = splitIntoSentences(loaded.content);
 
 			if (sentences.length === 0) {
 				throw new Error("No sentences recognized in the source text");
 			}
 
-			await this.persist(textId, loaded, sentences);
-			this.logger.log(`Text ${textId} ingested: ${sentences.length} sentences`);
+			const textId = await this.persist(task, loaded, sentences);
+			this.logger.log(`Task ${textTaskId} ingested: text ${textId}, ${sentences.length} sentences`);
 
 			return true;
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
-			await this.markFailed(textId, errorMessage);
-			this.logger.error(`Text ${textId} ingestion failed: ${errorMessage}`);
+			await this.markFailed(textTaskId, errorMessage);
+			this.logger.error(`Task ${textTaskId} ingestion failed: ${errorMessage}`);
 
 			throw error;
 		}
@@ -57,12 +58,13 @@ export class IngestionService {
 
 	/**
 	 * CAS по статусу: в работу берутся только QUEUED и зависшие PROCESSING (консьюмер
-	 * умер между claim и persist). READY/FAILED не перерабатываем без явного запроса.
+	 * умер между claim и persist). READY/FAILED не перерабатываем без явного запроса:
+	 * повторную постановку FAILED делает POST (см. TextService.create).
 	 */
-	private async claim(textId: number): Promise<Text | null> {
-		const updated = await this.prisma.text.updateMany({
+	private async claim(textTaskId: number): Promise<TextDownloadTask | null> {
+		const updated = await this.prisma.textDownloadTask.updateMany({
 			where: {
-				id: textId,
+				id: textTaskId,
 				status: { in: ["QUEUED", "PROCESSING"] },
 			},
 			data: { status: "PROCESSING", ingestError: null },
@@ -72,22 +74,33 @@ export class IngestionService {
 			return null;
 		}
 
-		return this.prisma.text.findUnique({ where: { id: textId } });
+		return this.prisma.textDownloadTask.findUnique({ where: { id: textTaskId } });
 	}
 
-	private async loadBySource(text: Text): Promise<TextLoadResult> {
-		switch (text.source) {
+	private async loadBySource(task: TextDownloadTask): Promise<TextLoadResult> {
+		switch (task.source) {
 			case "GUTENBERG":
-				return this.gutenbergLoader.load(text.sourceObjId);
+				return this.gutenbergLoader.load(task.sourceObjId);
 		}
 	}
 
-	private async persist(textId: number, loaded: TextLoadResult, sentences: string[]): Promise<void> {
-		await this.prisma.$transaction(async (tx) => {
-			// Пересборка с нуля: переживает повторный запуск после сбоя на середине вставки.
-			await tx.textSentence.deleteMany({ where: { textId } });
+	/**
+	 * Единая транзакция: либо текст со всеми предложениями и READY-задача, либо ничего.
+	 * Пересборка с нуля (deleteMany старых предложений) больше не нужна — при сбое
+	 * транзакция откатывается целиком, и повторный старт не может застать половину вставки.
+	 */
+	private async persist(task: TextDownloadTask, loaded: TextLoadResult, sentences: string[]): Promise<number> {
+		return this.prisma.$transaction(async (tx) => {
+			const text = await tx.text.create({
+				data: {
+					title: loaded.title,
+					language: loaded.language,
+					source: task.source,
+					sourceObjId: task.sourceObjId,
+				},
+			});
 
-			const rows = sentences.map((content, position) => ({ textId, position, content }));
+			const rows = sentences.map((content, position) => ({ textId: text.id, position, content }));
 
 			for (let offset = 0; offset < rows.length; offset += SENTENCES_BATCH_SIZE) {
 				await tx.textSentence.createMany({
@@ -95,27 +108,29 @@ export class IngestionService {
 				});
 			}
 
-			await tx.text.update({
-				where: { id: textId },
+			await tx.textDownloadTask.update({
+				where: { id: task.id },
 				data: {
-					title: loaded.title,
-					language: loaded.language,
 					status: "READY",
-					ingestedAt: new Date(),
+					textId: text.id,
+					finishedAt: new Date(),
+					ingestError: null,
 				},
 			});
+
+			return text.id;
 		});
 	}
 
-	private async markFailed(textId: number, reason: string): Promise<void> {
+	private async markFailed(textTaskId: number, reason: string): Promise<void> {
 		try {
-			await this.prisma.text.update({
-				where: { id: textId },
-				data: { status: "FAILED", ingestError: reason },
+			await this.prisma.textDownloadTask.update({
+				where: { id: textTaskId },
+				data: { status: "FAILED", ingestError: reason, finishedAt: new Date() },
 			});
 		} catch (error) {
 			// строка могла быть удалена параллельно — это не перекрывает исходную ошибку
-			this.logger.warn(`Could not mark text ${textId} as FAILED: ${error}`);
+			this.logger.warn(`Could not mark task ${textTaskId} as FAILED: ${error}`);
 		}
 	}
 }

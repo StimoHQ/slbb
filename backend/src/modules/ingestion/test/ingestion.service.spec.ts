@@ -1,18 +1,20 @@
 import { IngestionService } from "../ingestion.service";
 
 type TxMock = {
-	textSentence: { deleteMany: jest.Mock; createMany: jest.Mock };
-	text: { update: jest.Mock };
+	text: { create: jest.Mock };
+	textSentence: { createMany: jest.Mock };
+	textDownloadTask: { update: jest.Mock };
 };
 
 function createMocks() {
 	const tx: TxMock = {
-		textSentence: { deleteMany: jest.fn(), createMany: jest.fn() },
-		text: { update: jest.fn() },
+		text: { create: jest.fn().mockResolvedValue({ id: 100 }) },
+		textSentence: { createMany: jest.fn() },
+		textDownloadTask: { update: jest.fn() },
 	};
 
 	const prisma = {
-		text: {
+		textDownloadTask: {
 			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
 			findUnique: jest.fn(),
 			update: jest.fn().mockResolvedValue(undefined),
@@ -29,7 +31,7 @@ function createService(mocks: ReturnType<typeof createMocks>) {
 	return new IngestionService(mocks.prisma as never, mocks.loader as never);
 }
 
-const queuedText = {
+const queuedTask = {
 	id: 1,
 	sourceObjId: 11,
 	source: "GUTENBERG",
@@ -44,7 +46,7 @@ const loaded = {
 describe("IngestionService.process", () => {
 	it("skips a task that cannot be claimed (already READY/FAILED or gone)", async () => {
 		const mocks = createMocks();
-		mocks.prisma.text.updateMany.mockResolvedValue({ count: 0 });
+		mocks.prisma.textDownloadTask.updateMany.mockResolvedValue({ count: 0 });
 		const service = createService(mocks);
 
 		await expect(service.process(1)).resolves.toBe(false);
@@ -52,16 +54,16 @@ describe("IngestionService.process", () => {
 		expect(mocks.loader.load).not.toHaveBeenCalled();
 	});
 
-	it("processes a queued task end to end", async () => {
+	it("creates the text and closes the task when everything goes well", async () => {
 		const mocks = createMocks();
-		mocks.prisma.text.findUnique.mockResolvedValue(queuedText);
+		mocks.prisma.textDownloadTask.findUnique.mockResolvedValue(queuedTask);
 		mocks.loader.load.mockResolvedValue(loaded);
 		const service = createService(mocks);
 
 		await expect(service.process(1)).resolves.toBe(true);
 
 		// claim: только QUEUED/зависший PROCESSING берутся в работу
-		expect(mocks.prisma.text.updateMany).toHaveBeenCalledWith(
+		expect(mocks.prisma.textDownloadTask.updateMany).toHaveBeenCalledWith(
 			expect.objectContaining({
 				where: {
 					id: 1,
@@ -70,29 +72,33 @@ describe("IngestionService.process", () => {
 			}),
 		);
 		expect(mocks.loader.load).toHaveBeenCalledWith(11);
-		expect(mocks.tx.textSentence.deleteMany).toHaveBeenCalledWith({ where: { textId: 1 } });
+
+		// Text рождается только здесь — ни статуса, ни ошибки у него больше нет
+		expect(mocks.tx.text.create).toHaveBeenCalledWith({
+			data: {
+				title: loaded.title,
+				language: loaded.language,
+				source: "GUTENBERG",
+				sourceObjId: 11,
+			},
+		});
 		expect(mocks.tx.textSentence.createMany).toHaveBeenCalledWith({
 			data: [
-				{ textId: 1, position: 0, content: "One." },
-				{ textId: 1, position: 1, content: "Two." },
-				{ textId: 1, position: 2, content: "Three." },
+				{ textId: 100, position: 0, content: "One." },
+				{ textId: 100, position: 1, content: "Two." },
+				{ textId: 100, position: 2, content: "Three." },
 			],
 		});
-		expect(mocks.tx.text.update).toHaveBeenCalledWith(
-			expect.objectContaining({
-				where: { id: 1 },
-				data: expect.objectContaining({
-					title: loaded.title,
-					language: loaded.language,
-					status: "READY",
-				}),
-			}),
-		);
+		expect(mocks.tx.textDownloadTask.update).toHaveBeenCalledWith({
+			where: { id: 1 },
+			data: expect.objectContaining({ status: "READY", textId: 100 }),
+		});
+		expect(mocks.tx.textDownloadTask.update.mock.calls[0][0].data.finishedAt).toBeInstanceOf(Date);
 	});
 
 	it("inserts sentences in batches of 500", async () => {
 		const mocks = createMocks();
-		mocks.prisma.text.findUnique.mockResolvedValue(queuedText);
+		mocks.prisma.textDownloadTask.findUnique.mockResolvedValue(queuedTask);
 		mocks.loader.load.mockResolvedValue({
 			...loaded,
 			content: Array.from({ length: 501 }, (_unused, i) => `Alpha ${i} beta.`).join(" "),
@@ -111,21 +117,22 @@ describe("IngestionService.process", () => {
 
 	it("marks the task FAILED with the reason when the loader fails", async () => {
 		const mocks = createMocks();
-		mocks.prisma.text.findUnique.mockResolvedValue(queuedText);
+		mocks.prisma.textDownloadTask.findUnique.mockResolvedValue(queuedTask);
 		mocks.loader.load.mockRejectedValue(new Error("Gutenberg API error"));
 		const service = createService(mocks);
 
 		await expect(service.process(1)).rejects.toThrow("Gutenberg API error");
 
-		expect(mocks.prisma.text.update).toHaveBeenCalledWith({
+		expect(mocks.prisma.textDownloadTask.update).toHaveBeenCalledWith({
 			where: { id: 1 },
-			data: { status: "FAILED", ingestError: "Gutenberg API error" },
+			data: expect.objectContaining({ status: "FAILED", ingestError: "Gutenberg API error" }),
 		});
+		expect(mocks.tx.text.create).not.toHaveBeenCalled();
 	});
 
 	it("treats a text without recognized sentences as a failure", async () => {
 		const mocks = createMocks();
-		mocks.prisma.text.findUnique.mockResolvedValue(queuedText);
+		mocks.prisma.textDownloadTask.findUnique.mockResolvedValue(queuedTask);
 		mocks.loader.load.mockResolvedValue({ ...loaded, content: "  \n " });
 		const service = createService(mocks);
 
@@ -136,9 +143,9 @@ describe("IngestionService.process", () => {
 
 	it("survives a missing row during the FAILED bookkeeping", async () => {
 		const mocks = createMocks();
-		mocks.prisma.text.findUnique.mockResolvedValue(queuedText);
+		mocks.prisma.textDownloadTask.findUnique.mockResolvedValue(queuedTask);
 		mocks.loader.load.mockRejectedValue(new Error("boom"));
-		mocks.prisma.text.update.mockRejectedValue(new Error("row deleted"));
+		mocks.prisma.textDownloadTask.update.mockRejectedValue(new Error("row deleted"));
 		const service = createService(mocks);
 
 		// исходная ошибка важнее ошибки логирования статуса

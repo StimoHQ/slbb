@@ -11,7 +11,8 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/src/entrypoints/api/main.js",
+    "start:worker": "node dist/src/entrypoints/worker/main.js",
     "prisma:generate": "prisma generate",
     "nest:gen-res": "nest generate resource",
     "k8s:up": "bash k8s/up.sh",
@@ -82,6 +83,10 @@
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^prisma/generated/(.*)$": "<rootDir>/../prisma/generated/$1",
+      "^(\\.{1,2}/.*)\\.js$": "$1"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"

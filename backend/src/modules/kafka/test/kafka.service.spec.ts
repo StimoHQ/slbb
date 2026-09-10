@@ -118,7 +118,7 @@ describe("KafkaService", () => {
 
 describe("isTextDownloadEvent", () => {
 	it("accepts a well-formed event", () => {
-		expect(isTextDownloadEvent({ textId: 1, sourceObjId: 79501 })).toBe(true);
+		expect(isTextDownloadEvent({ textTaskId: 1, sourceObjId: 79501 })).toBe(true);
 	});
 
 	it("rejects non-object payloads", () => {
@@ -127,14 +127,18 @@ describe("isTextDownloadEvent", () => {
 	});
 
 	it("rejects invalid identifiers", () => {
-		expect(isTextDownloadEvent({ textId: 0, sourceObjId: 5 })).toBe(false);
-		expect(isTextDownloadEvent({ textId: -1, sourceObjId: 5 })).toBe(false);
-		expect(isTextDownloadEvent({ textId: 1.5, sourceObjId: 5 })).toBe(false);
-		expect(isTextDownloadEvent({ textId: "1", sourceObjId: 5 })).toBe(false);
-		expect(isTextDownloadEvent({ textId: 1 })).toBe(false);
+		expect(isTextDownloadEvent({ textTaskId: 0, sourceObjId: 5 })).toBe(false);
+		expect(isTextDownloadEvent({ textTaskId: -1, sourceObjId: 5 })).toBe(false);
+		expect(isTextDownloadEvent({ textTaskId: 1.5, sourceObjId: 5 })).toBe(false);
+		expect(isTextDownloadEvent({ textTaskId: "1", sourceObjId: 5 })).toBe(false);
+		expect(isTextDownloadEvent({ textTaskId: 1 })).toBe(false);
+	});
+
+	it("rejects the pre-task payload that carried a text id", () => {
+		expect(isTextDownloadEvent({ textId: 1, sourceObjId: 5 })).toBe(false);
 	});
 
 	it("ignores unknown extra fields (producer schema may evolve)", () => {
-		expect(isTextDownloadEvent({ textId: 1, sourceObjId: 5, futureField: true })).toBe(true);
+		expect(isTextDownloadEvent({ textTaskId: 1, sourceObjId: 5, futureField: true })).toBe(true);
 	});
 });

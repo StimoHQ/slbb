@@ -55,7 +55,7 @@ describe("TextDownloadConsumer", () => {
 		const consumer = new TextDownloadConsumer(mocks.kafka, mocks.ingestion, mocks.config);
 		await consumer.onModuleInit();
 
-		await mocks.deliver(JSON.stringify({ textId: 5, sourceObjId: 11 }));
+		await mocks.deliver(JSON.stringify({ textTaskId: 5, sourceObjId: 11 }));
 
 		expect(mocks.ingestion.process).toHaveBeenCalledWith(5);
 	});
@@ -63,7 +63,9 @@ describe("TextDownloadConsumer", () => {
 	it.each([
 		["empty payload", undefined],
 		["non-JSON payload", "<binary>"],
-		["schema mismatch", JSON.stringify({ textId: "5", sourceObjId: 11 })],
+		["schema mismatch", JSON.stringify({ textTaskId: "5", sourceObjId: 11 })],
+		// событие до переезда статуса на TextDownloadTask: глотается, а не роняет консьюмера
+		["legacy textId payload", JSON.stringify({ textId: 5, sourceObjId: 11 })],
 	])("acknowledges and discards a %s without touching the pipeline", async (_name, raw) => {
 		const mocks = createMocks();
 		const consumer = new TextDownloadConsumer(mocks.kafka, mocks.ingestion, mocks.config);
@@ -80,6 +82,6 @@ describe("TextDownloadConsumer", () => {
 		const consumer = new TextDownloadConsumer(mocks.kafka, mocks.ingestion, mocks.config);
 		await consumer.onModuleInit();
 
-		await expect(mocks.deliver(JSON.stringify({ textId: 5, sourceObjId: 11 }))).resolves.toBeUndefined();
+		await expect(mocks.deliver(JSON.stringify({ textTaskId: 5, sourceObjId: 11 }))).resolves.toBeUndefined();
 	});
 });

@@ -6,10 +6,12 @@ import { isTextDownloadEvent } from "../kafka/interfaces/kafka-events.interface"
 import { IngestionService } from "./ingestion.service";
 
 /**
- * Консьюмер задач загрузки текста. Живёт в том же процессе, что и API (решение MVP):
- * тяжёлая часть — сеть и вставка — асинхронные, CPU-пик разбивки ~0.2s на 1 МБ.
+ * Консьюмер задач загрузки текста. Поднимается только в worker-процессе (src/entrypoints/worker):
+ * там CPU-пик разбивки (~0.2s на 1 МБ) и длинные транзакции вставки не отнимают
+ * event loop API. В HTTP-процессе этот провайдер не создаётся — IngestionModule
+ * входит только в граф WorkerModule.
  * Обработка никогда не отдаёт ошибку в kafkajs: детерминированный повторный запуск
- * только сожрёт квоту источника, задача помечается FAILED и жит нового POST.
+ * только сожрёт квоту источника, задача помечается FAILED и ждёт нового POST.
  */
 @Injectable()
 export class TextDownloadConsumer implements OnModuleInit {
@@ -57,11 +59,11 @@ export class TextDownloadConsumer implements OnModuleInit {
 		}
 
 		try {
-			await this.ingestion.process(parsed.textId);
+			await this.ingestion.process(parsed.textTaskId);
 		} catch (error) {
 			// IngestionService уже перевёл задачу в FAILED и записал причину.
 			this.logger.error(
-				`Processing of text ${parsed.textId} failed, awaiting a new explicit request`,
+				`Processing of task ${parsed.textTaskId} failed, awaiting a new explicit request`,
 				error instanceof Error ? error.stack : undefined,
 			);
 		}

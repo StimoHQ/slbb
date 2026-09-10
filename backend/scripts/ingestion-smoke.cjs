@@ -31,20 +31,17 @@ async function main() {
 	});
 
 	try {
-		const existing = await prisma.text.findUnique({
+		const existing = await prisma.textDownloadTask.findUnique({
 			where: { source_sourceObjId: { source: "GUTENBERG", sourceObjId } },
 		});
 
+		// Как POST: перепоставляем найденную задачу, новую — создаём в QUEUED.
+		const queued = { status: "QUEUED", ingestError: null, finishedAt: null };
 		const task = existing
-			? await prisma.text.update({
-					where: { id: existing.id },
-					data: { status: "QUEUED", ingestError: null },
-				})
-			: await prisma.text.create({
-					data: { title: `smoke-${sourceObjId}`, sourceObjId, status: "QUEUED" },
-				});
+			? await prisma.textDownloadTask.update({ where: { id: existing.id }, data: queued })
+			: await prisma.textDownloadTask.create({ data: { sourceObjId, ...queued } });
 
-		console.log(`[smoke] task textId=${task.id} status=${task.status}`);
+		console.log(`[smoke] task id=${task.id} status=${task.status}`);
 
 		const http = new HttpService();
 		const api = new GutenbergApiService(http, configStub);
@@ -55,23 +52,31 @@ async function main() {
 		await ingestion.process(task.id);
 		console.log(`[smoke] process finished in ${Date.now() - started}ms`);
 
-		const done = await prisma.text.findUniqueOrThrow({
+		const done = await prisma.textDownloadTask.findUniqueOrThrow({
 			where: { id: task.id },
-			select: { title: true, status: true, language: true, ingestedAt: true },
+			select: {
+				status: true,
+				finishedAt: true,
+				ingestError: true,
+				text: { select: { id: true, title: true, language: true, createdAt: true } },
+			},
 		});
-		const count = await prisma.textSentence.count({ where: { textId: task.id } });
-		const head = await prisma.textSentence.findMany({
-			where: { textId: task.id },
-			orderBy: { position: "asc" },
-			take: 3,
-			select: { position: true, content: true },
-		});
+		const textId = done.text?.id;
+		const count = textId ? await prisma.textSentence.count({ where: { textId } }) : 0;
+		const head = textId
+			? await prisma.textSentence.findMany({
+					where: { textId },
+					orderBy: { position: "asc" },
+					take: 3,
+					select: { position: true, content: true },
+				})
+			: [];
 
-		console.log(`[smoke] ${JSON.stringify(done)} sentences=${count}`);
+		console.log(`[smoke] ${JSON.stringify(done)}`);
 		for (const s of head) {
 			console.log(`  [${s.position}] ${s.content.slice(0, 80)}`);
 		}
-		console.log("[smoke] OK — строка Text и text_sentences обновлены в БД");
+		console.log("[smoke] OK — задача закрыта, Text и text_sentences созданы в БД");
 	} finally {
 		await prisma.$disconnect();
 	}
